@@ -100,6 +100,7 @@ foreach(i = 1:nrow(datos)) %do% {
       return(NULL)
     }
   )
+}
   
   # Listar todos los archivos .nc en la carpeta especificada
   nc_files <- list.files(path = "./GitHub/bird_sounds/files/era5data", pattern = "\\.nc$", full.names = TRUE)
