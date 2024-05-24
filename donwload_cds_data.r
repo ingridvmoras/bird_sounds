@@ -1,23 +1,14 @@
-setwd("C:/Users/isabe/OneDrive/Documentos/GitHub/bird_sounds/files/code")
-
 # Establecer el directorio de trabajo
-setwd("C:/Users/isabe/OneDrive/Documentos/GitHub/bird_sounds/files/code")
+setwd("C:/Users/isabe/OneDrive/Documentos/GitHub/bird_sounds/files")
 
 # Verificar e instalar paquetes necesarios
-if (!require(foreach) || !require(ecmwfr) || !require(raster) || !require(sp) || !require(rgdal) || !require(tidyr) || !require(dplyr) || !require(lubridate) || !require(ncdf4) || !require(googleway)) {
-  install.packages(c("foreach", "ecmwfr", "raster", "sp", "rgdal", "tidyr", "dplyr", "lubridate", "ncdf4", "googleway"))
+if (!require(foreach) || !require(ecmwfr) || !require(googleway)) {
+  install.packages(c("foreach", "ecmwfr", "googleway"))
 }
 
-## Cargar las librerías necesarias
+# Cargar las librerías necesarias
 library(foreach)
 library(ecmwfr)
-library(raster)
-library(sp)
-library(rgdal)
-library(tidyr)
-library(dplyr)
-library(lubridate)
-library(ncdf4)
 library(googleway)
 library(tidyverse)
 
@@ -30,12 +21,10 @@ api_key <- "AIzaSyDTdfNAwyp4-5R-mgfhSOCwIF_dbvETlAw"
 # Leer los datos del archivo CSV
 datos <- read_delim("birdsongs_data.csv", delim = ";", escape_double = FALSE, trim_ws = TRUE)
 
-d<-datos[1:20,]
+d <- datos
+
 # Definir las variables a descargar
 variables <- c('2m_temperature', 'total_precipitation')
-
-# Inicializar un data frame para almacenar los resultados
-resultados <- data.frame(ID = character(), fecha = character(), temperatura = numeric(), precipitacion = numeric(), altitud = numeric()) 
 
 # Iterar sobre cada fila de datos
 foreach(i = 1:nrow(d)) %do% {
@@ -48,9 +37,6 @@ foreach(i = 1:nrow(d)) %do% {
   region <- d[i, "region"]
   fecha <- pull(d[i, "fecha"])
   tx <- as.character(d[i, "ID"])
-  
-  # Calcular las coordenadas promedio
-
   
   # Obtener datos de elevación utilizando Google Maps Elevation API
   elevation_data <- tryCatch(
@@ -96,38 +82,56 @@ foreach(i = 1:nrow(d)) %do% {
       return(NULL)
     }
   )
+}
+
+nc_files <- list.files(path = "C:/Users/isabe/OneDrive/Documentos/GitHub/bird_sounds/files", pattern = "\\.nc$", full.names = TRUE)
+
+# Inicializar un data frame para almacenar los resultados
+resultados <- data.frame(ID = character(), fecha = character(), temperatura = numeric(), precipitacion = numeric(), altitud = numeric()) 
+
+# Iterar sobre cada archivo .nc
+for (file in nc_files) {
+  # Abrir el archivo NetCDF
+  nc <- nc_open(file)
   
-  # Procesar los datos si el archivo se descargó correctamente
-  if (!is.null(file)) {
-    # Abrir el archivo NetCDF
-    nc <- nc_open(file)
-    
-    # Extraer las variables de interés
-    temp_kelvin <- ncvar_get(nc, "t2m")  # Temperatura en Kelvin
-    
-    # Convertir la temperatura de Kelvin a Celsius
-    temp_promedio <- apply(temp_kelvin-273.15, c(1, 2), mean)
-    temp_promedio_diaria <- mean(temp_promedio)
-    
-    # Extraer la precipitación total
-    precipitacion <- ncvar_get(nc, "tp")
-    
-    # Calcular la precipitación total
-    precipitacion_total <- apply(precipitacion, c(1, 2), sum) * 1000  # Convertir a mm
-    pre_total_diaria <- mean(precipitacion_total)
-    
-    # Agregar los resultados al data frame
-    resultados <- bind_rows(resultados, data.frame(
-      ID = tx,
-      fecha = as.character(fecha),
-      temperatura = temp_promedio_diaria,
-      precipitacion = pre_total_diaria,
-      altitud = altitud
-    ))
-    
-    # Eliminar el archivo NetCDF descargado
-    unlink(file)
-  }
+  # Extraer información del archivo
+  anio <- as.numeric(substr(file, nchar(file)-12, nchar(file)-9))  # Extraer el año del nombre del archivo
+  tx <- substr(file, nchar(file)-7, nchar(file)-4)  # Extraer el ID del nombre del archivo
+  
+  # Extraer las variables de interés
+  temp_kelvin <- ncvar_get(nc, "t2m")  # Temperatura en Kelvin
+  
+  # Convertir la temperatura de Kelvin a Celsius
+  temp_promedio <- apply(temp_kelvin - 273.15, c(1, 2), mean)
+  temp_promedio_diaria <- mean(temp_promedio)
+  
+  # Extraer la precipitación total
+  precipitacion <- ncvar_get(nc, "tp")
+  
+  # Calcular la precipitación total
+  precipitacion_total <- apply(precipitacion, c(1, 2), sum) * 1000  # Convertir a mm
+  pre_total_diaria <- mean(precipitacion_total)
+  
+  # Extraer información de la fecha y el ID del archivo
+  # (puedes adaptar esto según la estructura de nombres de tus archivos .nc)
+  info <- strsplit(file, "_")
+  ID <- info[[1]][3]  # Suponiendo que el ID está en la tercera posición del nombre del archivo
+  fecha <- info[[1]][4]  # Suponiendo que la fecha está en la cuarta posición del nombre del archivo
+  
+  # Agregar los resultados al data frame
+  resultados <- bind_rows(resultados, data.frame(
+    ID = ID,
+    fecha = fecha,
+    temperatura = temp_promedio_diaria,
+    precipitacion = pre_total_diaria,
+    altitud = NA  # Puedes ajustar esto dependiendo de cómo obtienes la altitud en esta sección
+  ))
+  
+  # Cerrar el archivo NetCDF
+  nc_close(nc)
+  
+  # Eliminar el archivo NetCDF procesado
+  file.remove(file)
 }
 
 # Guardar los resultados en un archivo CSV
