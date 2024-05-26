@@ -2,21 +2,37 @@ library(tidyverse)
 
 setwd("C:/Users/isabe/OneDrive/Documentos/GitHub/bird_sounds/files")
 
-climate<-read_csv('climate_variables.csv')
+
+climate<- read_delim("climate_variables.csv", 
+                                delim = ";", escape_double = FALSE, col_types = cols(date = col_date(format = "%d/%m/%Y")), 
+                                trim_ws = TRUE)
+
 singings<-read_delim("birdsongs_variables.csv", 
                                             delim = ";", escape_double = FALSE, trim_ws = TRUE)
 
-singings <- singings %>% 
+
+cad <- singings %>%  filter(View == 'Spectrogram 1') %>%
+  filter(`note` == "cad") %>%
+  select(`Delta Time (s)`, singing, ID) %>% rename(cad=`Delta Time (s)` ) 
+
+singings <- singings %>%
   filter(View == 'Spectrogram 1') %>%
-  group_by(ID) %>% mutate(canto=as.character(canto)) %>% 
-  mutate(`total elementos` = as.character(if_else(is.na(`total elementos`), "0", as.character(`total elementos`)))
-  ) %>%  select(4:which(names(.) == "ID")) %>%   group_by(`tipo de nota`, ID) %>%
-  summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop")
+  filter(note %in% c('a', 't', 'd')) %>%  select(6:13)
+
+
 
 data<- merge(climate, singings)
 
-write_csv(data, "final_data.csv")
 
-dataset<-read_delim("final_data.csv", 
-                                  delim = ";", escape_double = FALSE, trim_ws = TRUE)
+dataset<-merge(data,cad) %>% rename(
+  low_freq_hz = `Low Freq (Hz)`,
+  high_freq_hz = `High Freq (Hz)`,
+  delta_time_s = `Delta Time (s)`,
+  peak_freq_hz = `Peak Freq (Hz)`)
+
+
+
+write_csv(dataset, "final_dataset.csv")
+
+
 View(dataset)

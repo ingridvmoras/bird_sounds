@@ -13,22 +13,20 @@ library(googleway)
 library(tidyverse)
 
 # Establecer la clave de usuario y clave de API para CDS
-wf_set_key(user ="inserte_su_usuario", key = "inserte_key", service = "cds")
+wf_set_key(user ="_", key = "key", service = "cds")
 
 # Setear la clave de la API de Google Maps Elevation
-api_key <- "inserte_key"
+api_key <- "key"
 
 # Leer los datos del archivo CSV
 datos <- read_delim("birdsongs_data.csv", delim = ";", escape_double = FALSE, trim_ws = TRUE)
-
-# Definir las variables a descargar
-variables <- c('2m_temperature', 'total_precipitation')
 
 # Inicializar un data frame para almacenar los resultados
 resultados <- data.frame(ID = character(), fecha = character(), temperatura = numeric(), precipitacion = numeric(), altitud = numeric()) 
 
 # Inicializar un data frame para almacenar los resultados de altitud
 altitudes <- data.frame(ID = character(), altitud = numeric())
+
 
 # Iterar sobre cada fila de datos para obtener los datos de altitud
 foreach(i = 1:nrow(datos)) %do% {
@@ -37,6 +35,7 @@ foreach(i = 1:nrow(datos)) %do% {
   slat <- datos[i, "slat"]
   wlon <- datos[i, "wlon"]
   elon <- datos[i, "elon"]
+  
   tx <- as.character(datos[i, "ID"])
   
   # Obtener datos de elevación utilizando Google Maps Elevation API
@@ -62,6 +61,10 @@ foreach(i = 1:nrow(datos)) %do% {
 }
 
 # Iterar sobre cada fila de datos para descargar y procesar los datos climáticos
+# Definir las variables a descargar
+variables <- c('2m_temperature', 'maximum_2m_temperature_since_previous_post_processing', 'minimum_2m_temperature_since_previous_post_processing',
+               'total_precipitation')
+
 foreach(i = 1:nrow(datos)) %do% {
   # Obtener los valores de la fila actual
   nlat <- datos[i, "nlat"]
@@ -70,7 +73,7 @@ foreach(i = 1:nrow(datos)) %do% {
   elon <- datos[i, "elon"]
   anio <- as.numeric(datos[i, "anio"])
   region <- datos[i, "region"]
-  fecha <- datos[i, "fecha"]
+  fecha <- pull(datos[i, "fecha"])
   tx <- as.character(datos[i, "ID"])
   
   # Configurar la solicitud de descarga
@@ -102,11 +105,12 @@ foreach(i = 1:nrow(datos)) %do% {
   )
 }
   
+library(ncdf4)
   # Listar todos los archivos .nc en la carpeta especificada
-  nc_files <- list.files(path = "./GitHub/bird_sounds/files/era5data", pattern = "\\.nc$", full.names = TRUE)
+  nc_files <- list.files(path = "C:\\Users\\isabe\\OneDrive\\Documentos\\GitHub\\bird_sounds\\files\\era5data", pattern = "\\.nc$", full.names = TRUE)
   
   # Inicializar un data frame para almacenar los resultados
-  resultados <- data.frame(ID = character(), fecha = character(), temperatura = numeric(), precipitacion = numeric()) 
+  resultados <- data.frame(ID = character(), year = character(), temperature = numeric(), precipitation = numeric(), max_temp=numeric(),min_temp=numeric() ) 
   
   for (file in nc_files) {
     # Verificar si se obtuvo el archivo correctamente
@@ -117,8 +121,17 @@ foreach(i = 1:nrow(datos)) %do% {
       # Extraer las variables de interés
       temp_kelvin <- ncvar_get(nc, "t2m")  # Temperatura en Kelvin
       precipitacion <- ncvar_get(nc, "tp")  # Precipitación
+      temp_mn2t <- ncvar_get(nc, "mn2t")
+      temp_mx2t <- ncvar_get(nc, "mx2t")
+      
       
       # Calcular la temperatura y precipitación promedio diaria
+      temp_mn2t_promedio <- apply(temp_mn2t - 273.15, c(1, 2), mean)
+      temp_mn2t_promedio_diaria <- mean(temp_mn2t_promedio)
+      
+      temp_mx2t_promedio <- apply(temp_mx2t - 273.15, c(1, 2), mean)
+      temp_mx2t_promedio_diaria <- mean(temp_mx2t_promedio)
+      
       temp_promedio <- apply(temp_kelvin - 273.15, c(1, 2), mean)
       temp_promedio_diaria <- mean(temp_promedio)
       
@@ -142,17 +155,42 @@ foreach(i = 1:nrow(datos)) %do% {
       # Agregar los resultados al data frame de resultados
       resultados <- bind_rows(resultados, data.frame(
         ID = ID,
-        fecha = fecha,
-        temperatura = temp_promedio_diaria,
-        precipitacion = precipitacion_diaria
+        year = fecha,
+        temperature = temp_promedio_diaria,
+        precipitation = precipitacion_diaria,
+        max_temp= temp_mx2t_promedio_diaria,
+        min_temp=temp_mn2t_promedio_diaria 
       ))
     }
   }
   
-resultados <- merge(resultados, altitudes, by = "ID")
+  library(lubridate)
 
-write_csv(resultados, "climate_variables.csv")
+  fecha <- tibble(ID = character(), date = character(), region = character())
+  
+  foreach(i = 1:nrow(datos)) %do% {
+    # Obtener los valores de la fila actual
+    fecha_actual <- as.character(datos[i, "fecha"])  # Convert to character
+    tx <- as.character(datos[i, "ID"])
+    region <- as.character(datos[i, "region"])  # Close the parenthesis
+    
+    # Agregar la información al marco de datos 'fecha'
+    fecha <- bind_rows(fecha, tibble(ID = tx, date = fecha_actual, region = region))
+  }
+  
+  fecha <- fecha %>% mutate(date = dmy(date))
+
+  
+ 
+  resultados <- merge(resultados,altitudes)%>% rename(elevation=altitud)
+
+  resultados <- merge(resultados, fecha)
+
+
+  write_csv(resultados, "climate_variables.csv")
+
 
 # Imprimir los resultados
-print(resultados)
+View(resultados)
+  
   
