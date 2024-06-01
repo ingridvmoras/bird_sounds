@@ -11,20 +11,25 @@ singings<-read_delim("birdsongs_variables.csv",
                                             delim = ";", escape_double = FALSE, trim_ws = TRUE)
 
 
-cad <- singings %>%  filter(View == 'Spectrogram 1') %>%
-  filter(`note` == "cad") %>%
-  select(`Delta Time (s)`, singing, ID) %>% rename(cad=`Delta Time (s)` ) 
+data<- merge(climate, singings)
 
-singings <- singings %>%
+data <- data %>%
   filter(View == 'Spectrogram 1') %>%
   filter(note %in% c('a', 't', 'd')) %>%  select(6:13)
 
+cad <- data %>% filter(View == 'Spectrogram 1') %>% 
+  filter(`note` == "cad") %>%
+  select(`Delta Time (s)`, singing, ID,date,region) %>% rename(cad=`Delta Time (s)` ) 
 
 
-data<- merge(climate, singings)
+data <- data %>%
+  filter(note %in% c('a', 't', 'd')) 
 
 
-dataset<-merge(data,cad) %>% rename(
+
+
+
+dataset<- data %>% rename(
   low_freq_hz = `Low Freq (Hz)`,
   high_freq_hz = `High Freq (Hz)`,
   delta_time_s = `Delta Time (s)`,
@@ -33,6 +38,6 @@ dataset<-merge(data,cad) %>% rename(
 
 
 write_csv(dataset, "final_dataset.csv")
-
+write_csv(cad,"cad_dataset.csv")
 
 View(dataset)

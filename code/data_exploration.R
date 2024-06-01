@@ -13,7 +13,7 @@ climate <- climate_variables <- read_delim("climate_variables.csv",
                                 
 dataset <- read_csv("final_dataset.csv")
 dataset <- dataset %>% drop_na()
-
+cadencia<- read_csv("cad_dataset.csv")
 
 summary(climate)
 
@@ -23,8 +23,29 @@ dataset$date <- as.Date(dataset$date, format = "%Y-%m-%d")
 dataset$month <- lubridate::month(dataset$date)
 dataset$year<- as.numeric(dataset$year)
 
+cadencia<-merge(cadencia,climate)
+
+cadencia$date <- as.Date(cadencia$date, format = "%Y-%m-%d")
+cadencia$month <- lubridate::month(cadencia$date)
+cadencia$year<- lubridate::year(cadencia$date)
+
 region1<- dataset %>% filter(!region %in% c("Casanare", "Cesar", "Putumayo"))
 region2<- dataset %>% filter(region %in% c("Casanare", "Cesar", "Putumayo"))
+
+r1<- cadencia %>% filter(!region %in% c("Casanare", "Cesar", "Putumayo"))%>%
+  mutate(season = case_when(
+    month %in% c(12, 1, 2,6,7,8) ~ 1,
+    month %in% c(3, 4, 5,9,10,11) ~ 2) )
+
+r2<- cadencia %>% filter(region %in% c("Casanare", "Cesar", "Putumayo"))%>% mutate(season = case_when(
+  month %in% c(12, 1, 2,3) ~ 1,
+  month %in% c(4:11) ~ 2))
+
+
+
+
+region1<- region1 %>% select(-matches("(.y)$"))
+
 
 region1 <- region1 %>%
   mutate(quarter = case_when(
@@ -47,7 +68,7 @@ prom_region1 <- region1 %>%
 
 # Combinar los promedios con el conjunto de datos original
 region1 <- region1 %>%
-  left_join(prom_region1, by = c("quarter", "year")) %>%   left_join(prom_region1, by = c("quarter", "year")) %>% 
+  left_join(prom_region1, by = c("quarter", "year")) %>%   
   select(-matches("(.x)$"))
   
 
@@ -156,6 +177,7 @@ plot(pca_seca, choix="ind")
 pca_humedo <- PCA(X = datos_humedo, scale.unit = TRUE, graph = TRUE)
 
 fviz_screeplot(pca_humedo, ncp=3)
+
 fviz_pca_var(pca_humedo, alpha.var="contrib")+
   theme_minimal()
 summary(pca_seca)
@@ -196,7 +218,8 @@ correlation <- correlation_matrix$estimate #-0.5475581
 correlation2 <- correlation_matrix2$estimate #-0.03770287 
 
 #Estadisticos de tendencia central por temporada 
-selected_vars <- c('low_freq_hz','high_freq_hz','peak_freq_hz','delta_time_s','cad','quarter')
+selected_vars <- c('low_freq_hz','high_freq_hz','peak_freq_hz','delta_time_s','quarter','total_elements')
+
 
 region1 <- mutate_at(region1, selected_vars, as.numeric)
 
@@ -334,7 +357,7 @@ correlation <- correlation_matrix$estimate #-0.7515965
 correlation2 <- correlation_matrix2$estimate #-0.06647962
 
 #Estadisticos de tendencia central por temporada 
-selected_vars <- c('low_freq_hz','high_freq_hz','peak_freq_hz','delta_time_s','cad')
+selected_vars <- c('low_freq_hz','high_freq_hz','peak_freq_hz','delta_time_s')
 
 region2 <- mutate_at(region2, selected_vars, as.numeric)
 
